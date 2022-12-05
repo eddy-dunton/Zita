@@ -737,7 +737,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
 
 
 if __name__ == '__main__':
-    VERSION = "2.2.0"
+    VERSION = "2.2.1"
 
     config = parse_args()
 
