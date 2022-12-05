@@ -757,8 +757,8 @@ if __name__ == '__main__':
     else:
         alpr = None
 
-    car_detector = load_car_model(config) if config.car_class is None else None
     litter_detector = load_litter_model(config)
+    car_detector = load_car_model(config) if config.car_class is None else None
 
     print("\n")
 
