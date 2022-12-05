@@ -228,7 +228,16 @@ def parse_args(args = None) -> argparse.Namespace:
         "--device", dest = "device", action = "store", default = "",
         help = "CUDA device to use for litter and car detection")
 
-    return parser.parse_args(args)
+    out = parser.parse_args(args)
+    try:
+        # noinspection PyUnresolvedReferences
+        if out.device.lower() != "cpu":
+            out.device = int(out.device)
+    except ValueError:
+        print(f"Error! Invalid device {out.device}, returning to default")
+        out.device = ""
+
+    return out
 
 
 # Metrics in format (avg score, avg score event, avg score no event, avg speedup)
