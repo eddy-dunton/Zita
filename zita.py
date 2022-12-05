@@ -134,7 +134,7 @@ def load_alpr():
 
 
 def load_car_model(config: argparse.Namespace) -> torch.nn.Module:
-    model = torch.hub.load('Ultralytics/yolov5', config.car_weights)
+    model = torch.hub.load('Ultralytics/yolov5', config.car_weights, skip_validation = True)
     model.classes = [2, 3, 5, 7]  # Filter only cars, motorcycles, buses and trucks
     if config.device != "": model.to(config.device)
 
@@ -161,7 +161,7 @@ def load_litter_model(config: argparse.Namespace) -> torch.nn.Module:
     if not weights.startswith("weights/"):
         weights = "weights/" + weights
 
-    model = torch.hub.load('WongKinYiu/yolov7', 'custom', weights)
+    model = torch.hub.load('WongKinYiu/yolov7', 'custom', weights, skip_validation = True)
     model.conf = conf
     if config.device != "": model.to(config.device)
 
@@ -742,7 +742,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
 
 
 if __name__ == '__main__':
-    VERSION = "2.3.0"
+    VERSION = "2.3.1"
 
     config = parse_args()
 
