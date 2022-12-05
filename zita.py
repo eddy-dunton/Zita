@@ -127,7 +127,7 @@ def load_frames(path: str, fps: int) -> [torch.Tensor]:
     return out, len(out) / fps
 
 
-def load_alpr() -> openalpr.Alpr:
+def load_alpr():
     alpr = openalpr.Alpr("eu", "/etc/openalpr/openalpr.conf", "/usr/share/openalpr/runtime_data/")
     alpr.set_top_n(1)
     return alpr
@@ -136,6 +136,7 @@ def load_alpr() -> openalpr.Alpr:
 def load_car_model(config: argparse.Namespace) -> torch.nn.Module:
     model = torch.hub.load('Ultralytics/yolov5', config.car_weights)
     model.classes = [2, 3, 5, 7]  # Filter only cars, motorcycles, buses and trucks
+    if config.device != "": model.to(config.device)
 
     # Remove YOLOv5 bits from namespace
     # I know this is stupid and dumb and irresponsible and naughty of me, but I don't care
@@ -162,6 +163,7 @@ def load_litter_model(config: argparse.Namespace) -> torch.nn.Module:
 
     model = torch.hub.load('WongKinYiu/yolov7', 'custom', weights)
     model.conf = conf
+    if config.device != "": model.to(config.device)
 
     return model
 
@@ -228,6 +230,9 @@ def parse_args(args = None) -> argparse.Namespace:
     parser.add_argument(
         "--car-class", dest = "car_class", action = "store", default = None, type = int,
         help = "Class index of vehicle class if a unified detector is being used")
+    parser.add_argument(
+        "--device", dest = "device", action = "store", default = "",
+        help = "CUDA device to use for litter and car detection")
 
     return parser.parse_args(args)
 
@@ -737,7 +742,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
 
 
 if __name__ == '__main__':
-    VERSION = "2.2.1"
+    VERSION = "2.3.0"
 
     config = parse_args()
 
