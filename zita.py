@@ -134,7 +134,8 @@ def load_alpr():
 
 
 def load_car_model(config: argparse.Namespace) -> torch.nn.Module:
-    model = torch.hub.load('Ultralytics/yolov5', config.car_weights, skip_validation=True)
+    torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
+    model = torch.hub.load('Ultralytics/yolov5', config.car_weights)
     model.classes = [2, 3, 5, 7]  # Filter only cars, motorcycles, buses and trucks
     if config.device != "": model.to(config.device)
 
@@ -153,7 +154,8 @@ def load_litter_model(config: argparse.Namespace) -> torch.nn.Module:
     if not weights.startswith("weights/"):
         weights = "weights/" + weights
 
-    model = torch.hub.load('WongKinYiu/yolov7', 'custom', weights, skip_validation=True)
+    torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
+    model = torch.hub.load('WongKinYiu/yolov7', 'custom', weights)
     model.conf = conf
     if config.device != "": model.to(config.device)
 
