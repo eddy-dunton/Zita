@@ -133,17 +133,8 @@ def load_alpr() -> openalpr.Alpr:
     alpr.set_top_n(1)
     return alpr
 
-def validate_weight_path(path: str) -> str:
-    if not path.endswith(".pt"):
-        path += ".pt"
-
-    if not path.startswith("weights/"):
-        path = "weights/" + path
-
-    return path
-
 def load_car_model(config: argparse.Namespace) -> torch.nn.Module:
-    model = torch.hub.load('Ultralytics/yolov5', "yolov5n6")
+    model = torch.hub.load('Ultralytics/yolov5', config.car_weights)
     model.classes = [2, 3, 5, 7]  # Filter only cars, motorcycles, buses and trucks
 
     # Remove YOLOv5 bits from namespace
@@ -162,8 +153,14 @@ def load_litter_model(config: argparse.Namespace) -> torch.nn.Module:
     if 0 <= conf >= 1:
         raise Exception("Invalid confidence level")
 
-    # noinspection PyShadowingNames
-    model = torch.hub.load('WongKinYiu/yolov7', 'custom', validate_weight_path(config.weights))
+    weights = config.weights
+    if not weights.endswith(".pt"):
+        weights += ".pt"
+
+    if not weights.startswith("weights/"):
+        weights = "weights/" + weights
+
+    model = torch.hub.load('WongKinYiu/yolov7', 'custom', weights)
     model.conf = conf
 
     return model
@@ -215,8 +212,8 @@ def parse_args(args = None) -> argparse.Namespace:
         "--motion-threshold", dest = "motion_threshold", action = "store", default = 1000, type = int,
         help = "Threshold for the motion detector, frames below the threshold are not considered")
     parser.add_argument(
-        "--car-weights", dest = "car_weights", action = "store", default = "y7-coco",
-        help = "YOLOv7 weights used for car detection")
+        "--car-weights", dest = "car_weights", action = "store", default = "yolov5n6",
+        help = "YOLOv5 weights used for car detection")
     parser.add_argument(
         "--tag", dest = "tag", action = "store", default = "",
         help = "Tag saved alongside results, does nothing if --save is not also passed")
