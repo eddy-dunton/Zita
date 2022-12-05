@@ -9,7 +9,6 @@ import time
 from dataclasses import dataclass
 
 import cv2
-import openalpr
 import torch
 
 
@@ -133,6 +132,7 @@ def load_alpr() -> openalpr.Alpr:
     alpr.set_top_n(1)
     return alpr
 
+
 def load_car_model(config: argparse.Namespace) -> torch.nn.Module:
     model = torch.hub.load('Ultralytics/yolov5', config.car_weights)
     model.classes = [2, 3, 5, 7]  # Filter only cars, motorcycles, buses and trucks
@@ -183,6 +183,7 @@ def parse_args(args = None) -> argparse.Namespace:
     parser.add_argument(
         "-s", dest = "save", action = "store_true",
         help = "Save the results (to results/runs/<weights>.csv")
+    parser.add_argument("-p", dest = "skip_plates", action = "store_true", help = "Skip plate detection")
     parser.add_argument(
         "--cross-detection-threshold", dest = "cross_detection_threshold", action = "store",
         type = float,
@@ -501,7 +502,7 @@ def detect(config: argparse.Namespace, litter_detector, car_detector, frames: [t
 
 # Links car events and litter events together
 def link(
-        litter_events: [LitterEvent], car_events: {int: [[float, float, float, float]]}, alpr: openalpr.Alpr,
+        litter_events: [LitterEvent], car_events: {int: [[float, float, float, float]]}, alpr,
         frames: [torch.Tensor]) -> [(LitterEvent, str)]:
     out = []
 
@@ -536,8 +537,7 @@ def link(
                     closest[1] = car
                     closest[2] = frame
 
-        start = time.time()
-        if closest[1] is not None:
+        if closest[1] is not None and alpr is not None:
             # Crop frame to car region
             frame = frames[closest[2]]
             frame_height, frame_width, _ = frame.shape
@@ -580,8 +580,7 @@ class RunData:
 
 
 def run(
-        frames_path: str, config: argparse.Namespace, alpr: openalpr.Alpr, litter_detector, car_detector,
-        verbose = True) -> [RunData]:
+        frames_path: str, config: argparse.Namespace, alpr, litter_detector, car_detector, verbose = True) -> [RunData]:
     # Set up p to print or not print depending on verbosity
     if verbose:
         def p(s: str):
@@ -738,7 +737,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
 
 
 if __name__ == '__main__':
-    VERSION = "15"
+    VERSION = "17.0"
 
     config = parse_args()
 
@@ -746,7 +745,13 @@ if __name__ == '__main__':
     print("Config: ")
     print(config)
 
-    alpr = load_alpr()
+    if not config.skip_plates:
+        import openalpr
+
+        alpr = load_alpr()
+    else:
+        alpr = None
+
     car_detector = load_car_model(config) if config.car_class is None else None
     litter_detector = load_litter_model(config)
 
