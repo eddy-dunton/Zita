@@ -206,7 +206,7 @@ def parse_args(args = None) -> argparse.Namespace:
         help = "Max movement (as a multiple of the event's maximum detected width or height) between "
                "litter detections for them to be consider part of the same event")
     parser.add_argument(
-        "--motion-threshold", dest = "motion_threshold", action = "store", default = 1000, type = int,
+        "--motion-threshold", dest = "motion_threshold", action = "store", default = -1, type = int,
         help = "Threshold for the motion detector, frames below the threshold are not considered")
     parser.add_argument(
         "--car-weights", dest = "car_weights", action = "store", default = "yolov5n6",
@@ -231,7 +231,7 @@ def parse_args(args = None) -> argparse.Namespace:
     out = parser.parse_args(args)
     try:
         # noinspection PyUnresolvedReferences
-        if out.device.lower() != "cpu":
+        if out.device.lower() != "cpu" or out.device.lower() != "":
             out.device = int(out.device)
     except ValueError:
         print(f"Error! Invalid device {out.device}, returning to default")
@@ -608,7 +608,10 @@ def run(
 
     start = time.time()
 
-    filtered_frames = filter_frames(config, frames)
+    if config.motion_threshold != -1:
+        filtered_frames = filter_frames(config, frames)
+    else:
+        filtered_frames = frames
 
     p("Filtered {} motionless frames".format(len(frames) - len(filtered_frames)))
 
@@ -745,7 +748,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
 
 
 if __name__ == '__main__':
-    VERSION = "2.3.2"
+    VERSION = "2.4.0"
 
     config = parse_args()
 
