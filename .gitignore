@@ -2,6 +2,7 @@
 data/
 results/
 weights/
+yolov5*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

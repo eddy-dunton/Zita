@@ -143,8 +143,17 @@ def validate_weight_path(path: str) -> str:
     return path
 
 def load_car_model(config: argparse.Namespace) -> torch.nn.Module:
-    model = torch.hub.load('WongKinYiu/yolov7', 'custom', validate_weight_path(config.car_weights))
+    model = torch.hub.load('Ultralytics/yolov5', "yolov5n6")
     model.classes = [2, 3, 5, 7]  # Filter only cars, motorcycles, buses and trucks
+
+    # Remove YOLOv5 bits from namespace
+    # I know this is stupid and dumb and irresponsible and naughty of me, but I don't care
+    # I tried literally everything else and this is the only thing that works
+    # Father have mercy on my soul, fore I have sinned
+    for k in list(sys.modules.keys()):
+        if k.startswith("models") or k.startswith("utils"):
+            del sys.modules[k]
+
     return model
 
 
@@ -741,8 +750,8 @@ if __name__ == '__main__':
     print(config)
 
     alpr = load_alpr()
-    litter_detector = load_litter_model(config)
     car_detector = load_car_model(config) if config.car_class is None else None
+    litter_detector = load_litter_model(config)
 
     print("\n")
 
