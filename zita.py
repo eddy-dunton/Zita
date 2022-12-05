@@ -133,28 +133,28 @@ def load_alpr() -> openalpr.Alpr:
     alpr.set_top_n(1)
     return alpr
 
+def validate_weight_path(path: str) -> str:
+    if not path.endswith(".pt"):
+        path += ".pt"
 
-def load_car_model(weights):
-    model = torch.hub.load('ultralytics/yolov5', weights)
+    if not path.startswith("weights/"):
+        path = "weights/" + path
+
+    return path
+
+def load_car_model(config: argparse.Namespace) -> torch.nn.Module:
+    model = torch.hub.load('WongKinYiu/yolov7', 'custom', validate_weight_path(config.car_weights))
     model.classes = [2, 3, 5, 7]  # Filter only cars, motorcycles, buses and trucks
     return model
 
 
-def load_litter_model(config: argparse.Namespace):
+def load_litter_model(config: argparse.Namespace) -> torch.nn.Module:
     conf = config.confidence
     if 0 <= conf >= 1:
         raise Exception("Invalid confidence level")
 
-    weights = config.weights
-
-    if not weights.endswith(".pt"):
-        weights += ".pt"
-
-    if not weights.startswith("weights/"):
-        weights = "weights/" + weights
-
     # noinspection PyShadowingNames
-    model = torch.hub.load('ultralytics/yolov5', 'custom', weights)
+    model = torch.hub.load('WongKinYiu/yolov7', 'custom', validate_weight_path(config.weights))
     model.conf = conf
 
     return model
@@ -176,7 +176,7 @@ def parse_args(args = None) -> argparse.Namespace:
     parser.add_argument("-v", dest = "evaluate", action = "store_true", help = "Evaluate performance")
     parser.add_argument(
         "-s", dest = "save", action = "store_true",
-        help = "Save the results (to results/<weights>.csv")
+        help = "Save the results (to results/runs/<weights>.csv")
     parser.add_argument(
         "--cross-detection-threshold", dest = "cross_detection_threshold", action = "store",
         type = float,
@@ -206,8 +206,8 @@ def parse_args(args = None) -> argparse.Namespace:
         "--motion-threshold", dest = "motion_threshold", action = "store", default = 1000, type = int,
         help = "Threshold for the motion detector, frames below the threshold are not considered")
     parser.add_argument(
-        "--car-weights", dest = "car_weights", action = "store", default = "yolov5n6",
-        help = "YOLOv5 weights used for car detection")
+        "--car-weights", dest = "car_weights", action = "store", default = "y7-coco",
+        help = "YOLOv7 weights used for car detection")
     parser.add_argument(
         "--tag", dest = "tag", action = "store", default = "",
         help = "Tag saved alongside results, does nothing if --save is not also passed")
@@ -234,7 +234,7 @@ def save(
     run_id = str(int(time.time()))[2:]
 
     # Save general results
-    with open("results.csv", "a+") as file:
+    with open("results/results.csv", "a+") as file:
         if not exists:
             # Write headers
             file.write(
@@ -278,7 +278,7 @@ def save(
     except:
         pass
 
-    with open("results/{}.csv".format(run_id), "w+") as file:
+    with open("results/runs/{}.csv".format(run_id), "w+") as file:
         file.write("Data,Score,Speed\n")
         for data, (score, speed) in scores_events.items():
             file.write("{},{},{}\n".format(data, score, speed))
@@ -732,7 +732,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
 
 
 if __name__ == '__main__':
-    VERSION = "14.2"
+    VERSION = "15"
 
     config = parse_args()
 
@@ -742,7 +742,7 @@ if __name__ == '__main__':
 
     alpr = load_alpr()
     litter_detector = load_litter_model(config)
-    car_detector = load_car_model(config.car_weights) if config.car_class is None else None
+    car_detector = load_car_model(config) if config.car_class is None else None
 
     print("\n")
 
@@ -752,7 +752,7 @@ if __name__ == '__main__':
         run_data.append(run(path, config, alpr, litter_detector, car_detector))
 
     if config.evaluate:
-        truth = load_truth("truth.txt")
+        truth = load_truth("data/truth.txt")
 
         scores_events, scores_no_events = score(truth, run_data)
 
