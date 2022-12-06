@@ -761,7 +761,7 @@ if __name__ == '__main__':
     print("Config: ")
     print(config)
 
-    if not config.plates:
+    if config.plates:
         import openalpr
 
         alpr = load_alpr()
