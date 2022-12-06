@@ -2,6 +2,7 @@
 data/
 results/
 weights/
+logs/
 yolov5*.pt
 
 # Byte-compiled / optimized / DLL files
