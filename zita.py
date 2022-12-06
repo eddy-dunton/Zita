@@ -155,7 +155,7 @@ def load_litter_model(config: argparse.Namespace) -> torch.nn.Module:
         weights = "weights/" + weights
 
     torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
-    model = torch.hub.load('WongKinYiu/yolov7', 'custom', weights)
+    model = torch.hub.load(config.litter_model, 'custom', weights)
     model.conf = conf
     if config.device != "": model.to(config.device)
 
@@ -179,7 +179,9 @@ def parse_args(args = None) -> argparse.Namespace:
     parser.add_argument(
         "-s", dest = "save", action = "store_true",
         help = "Save the results (to results/runs/<weights>.csv")
-    parser.add_argument("-p", dest = "skip_plates", action = "store_true", help = "Skip plate detection")
+    parser.add_argument(
+        "-p", dest = "plates", action = "store_true",
+        help = "Perform plate detection, please note this requires OpenALPR, which is a pain in the ass to install")
     parser.add_argument(
         "--cross-detection-threshold", dest = "cross_detection_threshold", action = "store",
         type = float,
@@ -227,11 +229,15 @@ def parse_args(args = None) -> argparse.Namespace:
     parser.add_argument(
         "--device", dest = "device", action = "store", default = "",
         help = "CUDA device to use for litter and car detection")
+    parser.add_argument(
+        "--litter-model", dest = "litter_model", action = "store", default = "WongKinYiu/yolov7",
+        help = "Litter detection model to use, please note that the repo CAN NOT be verified automatically and must be"
+               " verified manually first")
 
     out = parser.parse_args(args)
     try:
         # noinspection PyUnresolvedReferences
-        if out.device.lower() != "cpu" or out.device.lower() != "":
+        if out.device.lower() != "cpu" and out.device.lower() != "":
             out.device = int(out.device)
     except ValueError:
         print(f"Error! Invalid device {out.device}, returning to default")
@@ -244,7 +250,7 @@ def parse_args(args = None) -> argparse.Namespace:
 def save(
         config: argparse.Namespace, scores_events: {str: (float, float)}, scores_no_events: {str: (float, float)},
         metrics: (float, float, float, float)):
-    exists = os.path.exists("results.csv")
+    exists = os.path.exists("results/results.csv")
 
     run_id = str(int(time.time()))[2:]
 
@@ -587,55 +593,6 @@ class RunData:
         return out
 
 
-def run(
-        frames_path: str, config: argparse.Namespace, alpr, litter_detector, car_detector, verbose = True) -> [RunData]:
-    # Set up p to print or not print depending on verbosity
-    if verbose:
-        def p(s: str):
-            print(s)
-    else:
-        def p(_):
-            pass
-
-    p(frames_path)
-
-    if not frames_path.startswith("data/"):
-        frames_path = "data/" + frames_path
-
-    frames, video_length = load_frames(frames_path, config.fps)
-
-    p("Loaded {} frames".format(len(frames)))
-
-    start = time.time()
-
-    if config.motion_threshold != -1:
-        filtered_frames = filter_frames(config, frames)
-    else:
-        filtered_frames = frames
-
-    p("Filtered {} motionless frames".format(len(frames) - len(filtered_frames)))
-
-    litter, cars = detect(config, litter_detector, car_detector, filtered_frames)
-
-    detection_time = time.time() - start
-
-    attributions = link(litter, cars, alpr, filtered_frames)
-
-    attribution_time = time.time() - start - detection_time
-
-    data = RunData(frames_path, attributions, detection_time, attribution_time, video_length)
-
-    del frames, filtered_frames
-
-    for line in data.to_readable():
-        p(line)
-
-    # if config.save:
-    # 	save(config, attributions, (detection_time, attribution_time))
-
-    return data
-
-
 # Takes a 2 sets of segments
 # Returns a the first set of segments - the intersection of the set of segments
 def temporal_exclusivity(include: [[float, float]], exclude: [[float, float]]) -> [[float, float]]:
@@ -747,8 +704,56 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
     return scores_events, scores_no_events
 
 
+def run(
+        frames_path: str, config: argparse.Namespace, alpr, litter_detector, car_detector, verbose = True) -> [RunData]:
+    # Set up p to print or not print depending on verbosity
+    if verbose:
+        def p(s: str):
+            print(s)
+    else:
+        def p(_):
+            pass
+
+    p(frames_path)
+
+    if not frames_path.startswith("data/"):
+        frames_path = "data/" + frames_path
+
+    frames, video_length = load_frames(frames_path, config.fps)
+
+    p(f"Loaded {len(frames)} frames")
+
+    start = time.time()
+
+    if config.motion_threshold != -1:
+        filtered_frames = filter_frames(config, frames)
+    else:
+        filtered_frames = frames
+
+    p(f"Filtered {len(frames) - len(filtered_frames)} motionless frames")
+
+    litter, cars = detect(config, litter_detector, car_detector, filtered_frames)
+
+    detection_time = time.time() - start
+
+    attributions = link(litter, cars, alpr, filtered_frames)
+
+    attribution_time = time.time() - start - detection_time
+
+    data = RunData(frames_path, attributions, detection_time, attribution_time, video_length)
+
+    del frames, filtered_frames
+
+    for line in data.to_readable():
+        p(line)
+
+    p(f"{detection_time=:.3f}, {attribution_time=:.3f}")
+
+    return data
+
+
 if __name__ == '__main__':
-    VERSION = "2.4.0"
+    VERSION = "2.5.0"
 
     config = parse_args()
 
@@ -756,7 +761,7 @@ if __name__ == '__main__':
     print("Config: ")
     print(config)
 
-    if not config.skip_plates:
+    if not config.plates:
         import openalpr
 
         alpr = load_alpr()
