@@ -233,6 +233,9 @@ def parse_args(args = None) -> argparse.Namespace:
         "--litter-model", dest = "litter_model", action = "store", default = "WongKinYiu/yolov7",
         help = "Litter detection model to use, please note that the repo CAN NOT be verified automatically and must be"
                " verified manually first")
+    parser.add_argument(
+        "--image-size", dest = "image_size", action = "store", default = 640, type = int,
+        help = "Image size for the litter detector, this must match the image size of the weights")
 
     out = parser.parse_args(args)
     try:
@@ -428,7 +431,7 @@ def detect(config: argparse.Namespace, litter_detector, car_detector, frames: [t
     for batch in litter_batches:
         print(f"Complete batch {i} of {len(litter_batches)}")
         i += 1
-        litter_detections_batches.append(litter_detector(batch).xyxyn)
+        litter_detections_batches.append(litter_detector(batch, size=config.image_size).xyxyn)
 
     # Flatten batches back out into a flat list
     litter_detections = list(itertools.chain.from_iterable(litter_detections_batches))
@@ -753,7 +756,7 @@ def run(
 
 
 if __name__ == '__main__':
-    VERSION = "2.5.1"
+    VERSION = "2.6.0"
 
     config = parse_args()
 
