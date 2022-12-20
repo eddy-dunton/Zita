@@ -1,16 +1,21 @@
 # Install manually
 #openalpr>=1.1.0
 
-#YOLOv5
+#YOLOv5 and YOLOv7 / YOLOR
+# Torch should be manually installed depending on the machine: https://pytorch.org/get-started/previous-versions/#v1110
+# torch < 1.12.0
+# torchvision < 0.13
 matplotlib>=3.2.2
-numpy==1.22.3
+numpy>=1.22.3
 opencv-python==4.5.*
 Pillow>=7.1.2
 PyYAML==6.0
 requests>=2.23.0
 scipy>=1.4.1
-torch>=1.7.0
-torchvision>=0.8.1
 tqdm>=4.41.0
 pandas>=1.4.2
 seaborn>=0.11.2
+protobuf<4.21.3
+tensorboard>=2.4.1
+ipython
+psutil
