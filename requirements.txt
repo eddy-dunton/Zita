@@ -15,7 +15,7 @@ scipy>=1.4.1
 tqdm>=4.41.0
 pandas>=1.4.2
 seaborn>=0.11.2
-protobuf<4.21.3
+protobuf==3.20.3
 tensorboard>=2.4.1
 ipython
 psutil
