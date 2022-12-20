@@ -252,7 +252,7 @@ def parse_args(args = None) -> argparse.Namespace:
 # Metrics in format (avg score, avg score event, avg score no event, avg speedup)
 def save(
         config: argparse.Namespace, scores_events: {str: (float, float)}, scores_no_events: {str: (float, float)},
-        metrics: (float, float, float, float)):
+        metrics: {str: float}):
     exists = os.path.exists("results/results.csv")
 
     run_id = str(int(time.time()))[2:]
@@ -262,8 +262,9 @@ def save(
         if not exists:
             # Write headers
             file.write(
-                "Run Id,Video,Weight,Score,Score (Events),Score (No Events),Speed,Conf,FPS,X-Det Threshold,Max Size,"
-                "Max Intersection,Max Det Gap,Max Move,Car Weights,Tag,Version,\n")
+                "Run Id,Video,Litter Model,Weights,Image Size,Score,Score (Events),Score (No Events),Speed,"
+                "Frames Excluded,Conf,FPS,X-Det Threshold,Max Size,Max Intersection,Max Det Gap,Max Move,"
+                "Motion Threshold,Car Weights,Tag,Version,\n")
 
         def write(val):
             file.write(str(val) + ",")
@@ -273,12 +274,15 @@ def save(
 
         write(run_id)
         write(";".join(config.video))
+        write(config.litter_model)
         write(config.weights)
+        write(config.image_size)
 
-        write_float(metrics[0])
-        write_float(metrics[1])
-        write_float(metrics[2])
-        write_float(metrics[3])
+        write_float(metrics["score"])
+        write_float(metrics["score_events"])
+        write_float(metrics["score_no_events"])
+        write_float(metrics["speed"])
+        write_float(metrics["frames_excluded"])
 
         write(config.confidence)
         write(config.fps)
@@ -287,6 +291,7 @@ def save(
         write(config.max_car_litter_intersection)
         write(config.max_detection_gap)
         write(config.max_movement)
+        write(config.motion_threshold)
 
         if config.car_class:
             write("Unified")
@@ -427,11 +432,9 @@ def detect(config: argparse.Namespace, litter_detector, car_detector, frames: [t
     # TODO remove
     # Strange new code, for some reason this doesn't work without this?
     litter_detections_batches = []
-    i = 1
-    for batch in litter_batches:
-        print(f"Complete batch {i} of {len(litter_batches)}")
-        i += 1
-        litter_detections_batches.append(litter_detector(batch, size=config.image_size).xyxyn)
+    for ib, batch in enumerate(litter_batches):
+        print(f"Complete batch {ib + 1} of {len(litter_batches)}")
+        litter_detections_batches.append(litter_detector(batch, size = config.image_size).xyxyn)
 
     # Flatten batches back out into a flat list
     litter_detections = list(itertools.chain.from_iterable(litter_detections_batches))
@@ -582,6 +585,7 @@ class RunData:
     detection_time: float
     attribution_time: float
     video_length: float
+    frames_excluded: float
 
     # Convert to human readable format
     def to_readable(self):
@@ -743,7 +747,9 @@ def run(
 
     attribution_time = time.time() - start - detection_time
 
-    data = RunData(frames_path, attributions, detection_time, attribution_time, video_length)
+    excluded_frames = (len(frames) - len(filtered_frames)) / len(frames)
+
+    data = RunData(frames_path, attributions, detection_time, attribution_time, video_length, excluded_frames)
 
     del frames, filtered_frames
 
@@ -756,7 +762,7 @@ def run(
 
 
 if __name__ == '__main__':
-    VERSION = "2.6.0"
+    VERSION = "2.7.0"
 
     config = parse_args()
 
@@ -773,7 +779,7 @@ if __name__ == '__main__':
 
     litter_detector = load_litter_model(config)
 
-    # Remove YOLOv7 bits from namespace
+    # Remove litter detector bits from namespace, necessary in order to have a different model for litter and cars
     # I know this is stupid and dumb and irresponsible and naughty of me, but I don't care
     # I tried literally everything else and this is the only thing that works
     # Father have mercy on my soul, fore I have sinned
@@ -816,6 +822,8 @@ if __name__ == '__main__':
             avg_score_no_events /= len(scores_no_events)
         avg_speed /= len(scores_events) + len(scores_no_events)
 
+        avg_frames_excluded = sum(map(lambda r: r.frames_excluded, run_data)) / len(run_data)
+
         print(
             "Average score: {:.2f} (events: {:.2f}, no events {:.2f}), average speed {:.2f}"
                 .format(avg_score, avg_score_events, avg_score_no_events, avg_speed))
@@ -823,4 +831,8 @@ if __name__ == '__main__':
         if config.save:
             save(
                 config, scores_events, scores_no_events,
-                (avg_score, avg_score_events, avg_score_no_events, avg_speed))
+                {
+                    "score": avg_score,
+                    "score_events": avg_score_events,
+                    "score_no_events": avg_score_no_events,
+                    "speed": avg_speed, "frames_excluded": avg_frames_excluded})
