@@ -178,7 +178,7 @@ def parse_args(args = None) -> argparse.Namespace:
     parser.add_argument("-v", dest = "evaluate", action = "store_true", help = "Evaluate performance")
     parser.add_argument(
         "-s", dest = "save", action = "store_true",
-        help = "Save the results (to results/<weights>.csv")
+        help = "Save the results (to results/results/<weights>.csv")
     parser.add_argument(
         "-p", dest = "plates", action = "store_true",
         help = "Perform plate detection, please note this requires OpenALPR, which is a pain in the ass to install")
@@ -234,8 +234,8 @@ def parse_args(args = None) -> argparse.Namespace:
 # Metrics in format (avg score, avg score event, avg score no event, avg speedup)
 def save(
         config: argparse.Namespace, scores_events: {str: (float, float)}, scores_no_events: {str: (float, float)},
-        metrics: (float, float, float, float)):
-    exists = os.path.exists("results.csv")
+        metrics: {str: float}):
+    exists = os.path.exists("results/results.csv")
 
     run_id = str(int(time.time()))[2:]
 
@@ -244,8 +244,9 @@ def save(
         if not exists:
             # Write headers
             file.write(
-                "Run Id,Video,Weight,Score,Score (Events),Score (No Events),Speed,Conf,FPS,X-Det Threshold,Max Size,"
-                "Max Intersection,Max Det Gap,Max Move,Car Weights,Tag,Version,\n")
+                "Run Id,Video,Litter Model,Weights,Image Size,Score,Score (Events),Score (No Events),Speed,"
+                "Frames Excluded,Conf,FPS,X-Det Threshold,Max Size,Max Intersection,Max Det Gap,Max Move,"
+                "Motion Threshold,Car Weights,Tag,Version,\n")
 
         def write(val):
             file.write(str(val) + ",")
@@ -255,12 +256,15 @@ def save(
 
         write(run_id)
         write(";".join(config.video))
+        write(config.litter_model)
         write(config.weights)
+        write(config.image_size)
 
-        write_float(metrics[0])
-        write_float(metrics[1])
-        write_float(metrics[2])
-        write_float(metrics[3])
+        write_float(metrics["score"])
+        write_float(metrics["score_events"])
+        write_float(metrics["score_no_events"])
+        write_float(metrics["speed"])
+        write_float(metrics["frames_excluded"])
 
         write(config.confidence)
         write(config.fps)
@@ -269,6 +273,7 @@ def save(
         write(config.max_car_litter_intersection)
         write(config.max_detection_gap)
         write(config.max_movement)
+        write(config.motion_threshold)
 
         if config.car_class:
             write("Unified")
@@ -565,6 +570,7 @@ class RunData:
     detection_time: float
     attribution_time: float
     video_length: float
+    frames_excluded: float
 
     # Convert to human readable format
     def to_readable(self):
@@ -794,6 +800,8 @@ if __name__ == '__main__':
             avg_score_no_events = 0
         avg_speed = wgt_speed / (length_events + length_no_events)
 
+        avg_frames_excluded = sum(map(lambda r: r.frames_excluded, run_data)) / len(run_data)
+
         print(
             "Average score: {:.2f} (events: {:.2f}, no events {:.2f}), average speed {:.2f}"
                 .format(avg_score, avg_score_events, avg_score_no_events, avg_speed))
@@ -801,4 +809,8 @@ if __name__ == '__main__':
         if config.save:
             save(
                 config, scores_events, scores_no_events,
-                (avg_score, avg_score_events, avg_score_no_events, avg_speed))
+                {
+                    "score": avg_score,
+                    "score_events": avg_score_events,
+                    "score_no_events": avg_score_no_events,
+                    "speed": avg_speed, "frames_excluded": avg_frames_excluded})
