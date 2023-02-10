@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
+import cv2
 import itertools
 import math
 import os
 import sys
 import time
-from dataclasses import dataclass
-
-import cv2
 import torch
+from dataclasses import dataclass
 
 
 class LitterEvent:
@@ -182,6 +181,7 @@ def parse_args(args = None) -> argparse.Namespace:
     parser.add_argument(
         "-p", dest = "plates", action = "store_true",
         help = "Perform plate detection, please note this requires OpenALPR, which is a pain in the ass to install")
+    parser.add_argument("--verbose", dest = "verbose", action = "store_true",help = "Print additional debugging data")
     parser.add_argument(
         "--cross-detection-threshold", dest = "cross_detection_threshold", action = "store",
         type = float,
@@ -712,15 +712,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
 
 
 def run(
-        frames_path: str, config: argparse.Namespace, alpr, litter_detector, car_detector, verbose = True) -> [RunData]:
-    # Set up p to print or not print depending on verbosity
-    if verbose:
-        def p(s: str):
-            print(s)
-    else:
-        def p(_):
-            pass
-
+        frames_path: str, config: argparse.Namespace, alpr, litter_detector, car_detector) -> [RunData]:
     p(frames_path)
 
     if not frames_path.startswith("data/"):
@@ -762,13 +754,21 @@ def run(
 
 
 if __name__ == '__main__':
-    VERSION = "2.7.0"
+    VERSION = "2.7.1"
 
     config = parse_args()
 
     print("Zita v{}\n".format(VERSION))
     print("Config: ")
     print(config)
+
+    # Set up p to print or not print depending on verbosity
+    if config.verbose:
+        def p(s: str):
+            print(s)
+    else:
+        def p(_):
+            pass
 
     if config.plates:
         import openalpr
@@ -794,7 +794,10 @@ if __name__ == '__main__':
     run_data = []
 
     for path in config.video:
-        run_data.append(run(path, config, alpr, litter_detector, car_detector))
+        if os.path.isdir(path):
+            run_data.append(run(path, config, alpr, litter_detector, car_detector))
+        else:
+            p(f"Error path: {path} not a directory: could it be the truth file?")
 
     if config.evaluate:
         truth = load_truth("data/truth.txt")
