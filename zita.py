@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import cv2
 import itertools
 import math
 import os
@@ -754,7 +755,21 @@ if __name__ == '__main__':
     print("Config: ")
     print(config)
 
-    alpr = load_alpr()
+    # Set up p to print or not print depending on verbosity
+    if config.verbose:
+        def p(s: str):
+            print(s)
+    else:
+        def p(_):
+            pass
+
+    if config.plates:
+        import openalpr
+
+        alpr = load_alpr()
+    else:
+        alpr = None
+
     litter_detector = load_litter_model(config)
     car_detector = load_car_model(config.car_weights) if config.car_class is None else None
 
@@ -763,7 +778,10 @@ if __name__ == '__main__':
     run_data = []
 
     for path in config.video:
-        run_data.append(run(path, config, alpr, litter_detector, car_detector))
+        if os.path.isdir(path):
+            run_data.append(run(path, config, alpr, litter_detector, car_detector))
+        else:
+            p(f"Error path: {path} not a directory: could it be the truth file?")
 
     if config.evaluate:
         truth = load_truth("truth.txt")
