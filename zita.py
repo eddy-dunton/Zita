@@ -744,7 +744,7 @@ def run(
 
 
 if __name__ == '__main__':
-    VERSION = "2.7.1"
+    VERSION = "2.8.0"
 
     config = parse_args()
 
