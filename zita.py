@@ -8,6 +8,8 @@ import os
 import sys
 import time
 import torch
+import torchvision
+import torchvision.transforms
 from dataclasses import dataclass
 
 
@@ -224,9 +226,6 @@ def parse_args(args = None) -> argparse.Namespace:
         "--batch-size-cars", dest = "batch_size_car", action = "store", default = 1, type = int,
         help = "Batch size for the car detector")
     parser.add_argument(
-        "--car-class", dest = "car_class", action = "store", default = None, type = int,
-        help = "Class index of vehicle class if a unified detector is being used")
-    parser.add_argument(
         "--device", dest = "device", action = "store", default = "",
         help = "CUDA device to use for litter and car detection")
     parser.add_argument(
@@ -292,11 +291,7 @@ def save(
         write(config.max_detection_gap)
         write(config.max_movement)
         write(config.motion_threshold)
-
-        if config.car_class:
-            write("Unified")
-        else:
-            write(config.car_weights)
+        write(config.car_weights)
 
         write(config.tag), write(VERSION)
         file.write("\n")
@@ -413,18 +408,25 @@ def chunk(i, size) -> list:
 def detect(config: argparse.Namespace, litter_detector, car_detector, frames: [torch.Tensor]):
     start = time.time()
 
-    if not config.car_class:
-        # Break frames into batches
-        car_batches = [frame for frame in chunk(frames, config.batch_size_car)]
-        # Perform detection on batches
-        car_detections_batches = [car_detector(batch).xyxyn for batch in car_batches]
-        # Flatten batches back out into a flat list
-        car_detections = list(itertools.chain.from_iterable(car_detections_batches))
+    # Break frames into batches
+    car_batches = [frame for frame in chunk(frames, config.batch_size_car)]
+    # Perform detection on batches
+    car_detections_batches = [car_detector(batch).xyxyn for batch in car_batches]
+    # Flatten batches back out into a flat list
+    car_detections = list(itertools.chain.from_iterable(car_detections_batches))
+
+    print(car_detections)
+
+    # Get indexes of frames with car detections
+    # There is a faster way to do this, it's not really important rn
+    indexes_with_cars = [i for i in range(len(car_detections)) if len(car_detections[i])]
+    frames_with_cars = [frames[i] for i in range(len(frames)) if i in indexes_with_cars]
+
 
     cd = time.time() - start
 
     # Break frames into batches
-    litter_batches = [frame for frame in chunk(frames, config.batch_size_litter)]
+    litter_batches = [frame for frame in chunk(frames_with_cars, config.batch_size_litter)]
 
     # Perform detection on batches
     # TODO return to old
@@ -437,26 +439,14 @@ def detect(config: argparse.Namespace, litter_detector, car_detector, frames: [t
         litter_detections_batches.append(litter_detector(batch, size = config.image_size).xyxyn)
 
     # Flatten batches back out into a flat list
-    litter_detections = list(itertools.chain.from_iterable(litter_detections_batches))
+    litter_detections_out_of_place = list(itertools.chain.from_iterable(litter_detections_batches))
+    # Put elements back in the correct place
+    litter_detections = [litter_detections_out_of_place[indexes_with_cars.index(i)]
+                         if i in indexes_with_cars else torch.Tensor([]) for i in range(len(frames))]
+
+    print(litter_detections)
 
     ld = time.time() - start
-
-    if config.car_class:
-        car_class = config.car_class
-        car_detections = []
-        for i, frame in enumerate(litter_detections):
-            litter_frame = frame.tolist()
-            car_frame = []
-            id = -1
-            while id < len(litter_frame) - 1:
-                id += 1
-                det = litter_frame[id]
-                if det[5] == car_class:
-                    car_frame.append(det)
-                    litter_frame.remove(det)
-                    id -= 1
-            litter_detections[i] = torch.Tensor(litter_frame)
-            car_detections.append(torch.Tensor(car_frame))
 
     litter_events = []
     car_events = {}
@@ -725,7 +715,7 @@ def run(
     start = time.time()
 
     if config.motion_threshold != -1:
-        filtered_frames = filter_frames(config, frames)
+        filtered_frames = motion_filter_frames(config, frames)
     else:
         filtered_frames = frames
 
@@ -787,7 +777,7 @@ if __name__ == '__main__':
         if k.startswith("models") or k.startswith("utils"):
             del sys.modules[k]
 
-    car_detector = load_car_model(config) if config.car_class is None else None
+    car_detector = load_car_model(config)
 
     print("\n")
 
