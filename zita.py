@@ -551,10 +551,11 @@ def link(
             car_region = [int(closest[1][0] * frame_width), int(closest[1][1] * frame_height),
                           int(closest[1][2] * frame_width), int(closest[1][3] * frame_height)]
             crop = (frame[car_region[1]:car_region[3], car_region[0]:car_region[2]])
-            alpr_results = alpr.recognize_ndarray(crop)["results"]
+            if alpr:
+                alpr_results = alpr.recognize_ndarray(crop)["results"]
+                if alpr_results:
+                    out.append((event, alpr_results[0]["plate"]))
 
-            if alpr_results:
-                out.append((event, alpr_results[0]["plate"]))
             else:
                 out.append((event, "No plate found"))
 
@@ -608,7 +609,7 @@ def run(
 
     start = time.time()
 
-    filtered_frames = filter_frames(config, frames)
+    filtered_frames = motion_filter_frames(config, frames)
 
     p("Filtered {} motionless frames".format(len(frames) - len(filtered_frames)))
 
@@ -620,7 +621,7 @@ def run(
 
     attribution_time = time.time() - start - detection_time
 
-    data = RunData(frames_path, attributions, detection_time, attribution_time, video_length)
+    data = RunData(frames_path, attributions, detection_time, attribution_time, video_length, -1.0)
 
     del frames, filtered_frames
 
@@ -784,7 +785,7 @@ if __name__ == '__main__':
             p(f"Error path: {path} not a directory: could it be the truth file?")
 
     if config.evaluate:
-        truth = load_truth("truth.txt")
+        truth = load_truth("data/truth.txt")
 
         scores_events, scores_no_events = score(truth, run_data)
 
