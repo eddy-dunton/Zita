@@ -742,7 +742,7 @@ def run(
 
 
 if __name__ == '__main__':
-    VERSION = "2.9.0"
+    VERSION = "2.9.1"
 
     config = parse_args()
 
@@ -817,7 +817,7 @@ if __name__ == '__main__':
         else:
             avg_score_events = 0
         if scores_no_events:
-            avg_score_no_events = wgt_no_score_events / length_no_events
+            avg_score_no_events = wgt_score_no_events / length_no_events
         else:
             avg_score_no_events = 0
         avg_speed = wgt_speed / (length_events + length_no_events)
