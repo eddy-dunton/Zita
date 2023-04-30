@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 import argparse
-import cv2
 import itertools
 import math
 import os
 import sys
 import time
+from dataclasses import dataclass
+
+import cv2
 import torch
 import torchvision
 import torchvision.transforms
-from dataclasses import dataclass
 
 
 class LitterEvent:
@@ -183,7 +184,7 @@ def parse_args(args = None) -> argparse.Namespace:
     parser.add_argument(
         "-p", dest = "plates", action = "store_true",
         help = "Perform plate detection, please note this requires OpenALPR, which is a pain in the ass to install")
-    parser.add_argument("--verbose", dest = "verbose", action = "store_true",help = "Print additional debugging data")
+    parser.add_argument("--verbose", dest = "verbose", action = "store_true", help = "Print additional debugging data")
     parser.add_argument(
         "--cross-detection-threshold", dest = "cross_detection_threshold", action = "store",
         type = float,
@@ -388,7 +389,7 @@ def frame_difference(frame1: torch.Tensor, frame2: torch.Tensor) -> float:
     return int(cv2.norm(frame1, frame2, cv2.NORM_L2SQR))
 
 
-def filter_frames(config: argparse.Namespace, frames: [torch.Tensor]) -> [torch.Tensor]:
+def motion_filter_frames(config: argparse.Namespace, frames: [torch.Tensor]) -> [torch.Tensor]:
     filtered = []
 
     for fi in range(len(frames) - 1):
@@ -415,13 +416,10 @@ def detect(config: argparse.Namespace, litter_detector, car_detector, frames: [t
     # Flatten batches back out into a flat list
     car_detections = list(itertools.chain.from_iterable(car_detections_batches))
 
-    print(car_detections)
-
     # Get indexes of frames with car detections
     # There is a faster way to do this, it's not really important rn
     indexes_with_cars = [i for i in range(len(car_detections)) if len(car_detections[i])]
     frames_with_cars = [frames[i] for i in range(len(frames)) if i in indexes_with_cars]
-
 
     cd = time.time() - start
 
@@ -443,8 +441,6 @@ def detect(config: argparse.Namespace, litter_detector, car_detector, frames: [t
     # Put elements back in the correct place
     litter_detections = [litter_detections_out_of_place[indexes_with_cars.index(i)]
                          if i in indexes_with_cars else torch.Tensor([]) for i in range(len(frames))]
-
-    print(litter_detections)
 
     ld = time.time() - start
 
@@ -643,14 +639,12 @@ def temporal_exclusivity(include: [[float, float]], exclude: [[float, float]]) -
 #   An event is not detected: score = 1
 
 # If the video contains events:
-#   No events are detected or detections do not overlap: score = 0
+#   detections do not overlap: score = - proportion of video (incorrectly) detected
+#   No events are detected:  score = 0
 #   Detections do overlap: score = 1 - (proportion of video not including litter which is also included)
 
-def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, float)}, {str: (float, float)}):
-    # Clamp score to 0.0 <= score <= 1.0
-    def cs(f: float):
-        return max(0.0, min(1.0, f))
-
+def score(truth: [[str, float, float]], run_data: [RunData]) -> (
+        {str: (float, float, float)}, {str: (float, float, float)}):
     # Calculates the speed of the operation as ratio of processing time to video length
     def speed(r: RunData):
         return r.video_length / (r.detection_time + r.attribution_time)
@@ -681,7 +675,9 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
                 # Sum up length of remaining segments
                 time_remaining = sum(map(lambda s: s[1] - s[0], segments_remaining))
                 proportion_remaining = time_remaining / run.video_length
-                scores_no_events[run.path] = (cs(proportion_remaining), speed(run))
+                # Clamp
+                proportion_remaining = max(0.0, min(1.0, proportion_remaining))
+                scores_no_events[run.path] = (proportion_remaining, speed(run), run.video_length)
 
             continue
 
@@ -696,7 +692,9 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> ({str: (float, f
             # Sum up length of remaining segments
             time_remaining = sum(map(lambda s: s[1] - s[0], segments_remaining))
             proportion_remaining = time_remaining / (run.video_length - (run_truth[2] - run_truth[1]))
-            scores_events[run.path] = (cs(proportion_remaining), speed(run))
+            # Clamp
+            proportion_remaining = max(-1.0, min(1.0, proportion_remaining))
+            scores_events[run.path] = (proportion_remaining, speed(run), run.video_length)
 
     return scores_events, scores_no_events
 
@@ -744,7 +742,7 @@ def run(
 
 
 if __name__ == '__main__':
-    VERSION = "2.8.1"
+    VERSION = "2.9.0"
 
     config = parse_args()
 
@@ -794,26 +792,35 @@ if __name__ == '__main__':
 
         scores_events, scores_no_events = score(truth, run_data)
 
-        avg_score_events, avg_score_no_events, avg_speed = 0, 0, 0
+        # Scores weighted by length (and length itself)
+        wgt_score_events, length_events = 0, 0
+        wgt_score_no_events, length_no_events = 0, 0
+        wgt_speed = 0
 
         print("Videos with events:")
-        for path, (score, speed) in scores_events.items():
-            avg_score_events += score
-            avg_speed += speed
-            print("{} scored {:.2f} at {:.2f}x speed".format(path, score, speed))
+        for path, (score, speed, length) in scores_events.items():
+            wgt_score_events += (score * length)
+            wgt_speed += (speed * length)
+            length_events += length
+            print("{} (length {:.2f} seconds) scored {:.2f} at {:.2f}x speed".format(path, length, score, speed))
 
         print("\nVideos without events:")
-        for path, (score, speed) in scores_no_events.items():
-            avg_score_no_events += score
-            avg_speed += speed
-            print("{} scored {:.2f} at {:.2f}x speed".format(path, score, speed))
+        for path, (score, speed, length) in scores_no_events.items():
+            wgt_score_no_events += (score * length)
+            wgt_speed += (speed * length)
+            length_no_events += length
+            print("{} (length {:.2f} seconds) scored {:.2f} at {:.2f}x speed".format(path, length, score, speed))
 
-        avg_score = (avg_score_events + avg_score_no_events) / (len(scores_events) + len(scores_no_events))
+        avg_score = (wgt_score_events + wgt_score_no_events) / (length_events + length_no_events)
         if scores_events:
-            avg_score_events /= len(scores_events)
+            avg_score_events = wgt_score_events / length_events
+        else:
+            avg_score_events = 0
         if scores_no_events:
-            avg_score_no_events /= len(scores_no_events)
-        avg_speed /= len(scores_events) + len(scores_no_events)
+            avg_score_no_events = wgt_no_score_events / length_no_events
+        else:
+            avg_score_no_events = 0
+        avg_speed = wgt_speed / (length_events + length_no_events)
 
         avg_frames_excluded = sum(map(lambda r: r.frames_excluded, run_data)) / len(run_data)
 
