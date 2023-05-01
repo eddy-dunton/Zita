@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 
 import cv2
-import openalpr
+# import openalpr
 import torch
 import torchvision
 import torchvision.transforms
@@ -130,11 +130,11 @@ def load_frames(path: str, fps: int) -> [torch.Tensor]:
 
     return out, len(out) / fps
 
-
-def load_alpr() -> openalpr.Alpr:
-    alpr = openalpr.Alpr("eu", "/etc/openalpr/openalpr.conf", "/usr/share/openalpr/runtime_data/")
-    alpr.set_top_n(1)
-    return alpr
+#
+# def load_alpr() -> openalpr.Alpr:
+#     alpr = openalpr.Alpr("eu", "/etc/openalpr/openalpr.conf", "/usr/share/openalpr/runtime_data/")
+#     alpr.set_top_n(1)
+#     return alpr
 
 
 def load_car_model(weights):
@@ -507,7 +507,7 @@ def detect(config: argparse.Namespace, litter_detector, car_detector, frames: [t
 
 # Links car events and litter events together
 def link(
-        litter_events: [LitterEvent], car_events: {int: [[float, float, float, float]]}, alpr: openalpr.Alpr,
+        litter_events: [LitterEvent], car_events: {int: [[float, float, float, float]]}, alpr,
         frames: [torch.Tensor]) -> [(LitterEvent, str)]:
     out = []
 
@@ -588,7 +588,7 @@ class RunData:
 
 
 def run(
-        frames_path: str, config: argparse.Namespace, alpr: openalpr.Alpr, litter_detector, car_detector,
+        frames_path: str, config: argparse.Namespace, alpr, litter_detector, car_detector,
         verbose = True) -> [RunData]:
     # Set up p to print or not print depending on verbosity
     if verbose:
@@ -764,12 +764,12 @@ if __name__ == '__main__':
         def p(_):
             pass
 
-    if config.plates:
-        import openalpr
-
-        alpr = load_alpr()
-    else:
-        alpr = None
+    # if config.plates:
+    #     import openalpr
+    #
+    #     alpr = load_alpr()
+    # else:
+    alpr = None
 
     litter_detector = load_litter_model(config)
     car_detector = load_car_model(config.car_weights) if config.car_class is None else None
