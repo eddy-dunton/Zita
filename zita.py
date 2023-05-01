@@ -357,35 +357,6 @@ def iou(a: [float, float, float, float], b: [float, float, float, float]) -> flo
     detections: [(int, [float])]  # TODO Figure out class
 """
 
-
-# Determine the difference between frames, used to determine if there is motion in frame and therefore the frame should
-# be considered
-#
-# Converts to grayscale and then applies a blur to reduce noise, then calculates the square difference
-def frame_difference(frame1: torch.Tensor, frame2: torch.Tensor) -> float:
-    # Convert to greyscale
-    frame1 = cv2.cvtColor(frame1, cv2.COLOR_RGB2GRAY)
-    frame2 = cv2.cvtColor(frame2, cv2.COLOR_RGB2GRAY)
-
-    # Blur to reduce noise
-    # TODO maybe tweak values
-    frame1 = cv2.GaussianBlur(frame1, (43, 43), 0)
-    frame2 = cv2.GaussianBlur(frame2, (43, 43), 0)
-
-    # Return difference
-    return int(cv2.norm(frame1, frame2, cv2.NORM_L2SQR))
-
-
-def motion_filter_frames(config: argparse.Namespace, frames: [torch.Tensor]) -> [torch.Tensor]:
-    filtered = []
-
-    for fi in range(len(frames) - 1):
-        if frame_difference(frames[fi], frames[fi + 1]) > config.motion_threshold:
-            filtered.append(frames[fi])
-
-    return filtered
-
-
 # Thanks https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks
 def chunk(i, size) -> list:
     it = iter(i)
@@ -609,21 +580,17 @@ def run(
 
     start = time.time()
 
-    filtered_frames = motion_filter_frames(config, frames)
-
-    p("Filtered {} motionless frames".format(len(frames) - len(filtered_frames)))
-
-    litter, cars = detect(config, litter_detector, car_detector, filtered_frames)
+    litter, cars = detect(config, litter_detector, car_detector, frames)
 
     detection_time = time.time() - start
 
-    attributions = link(litter, cars, alpr, filtered_frames)
+    attributions = link(litter, cars, alpr, frames)
 
     attribution_time = time.time() - start - detection_time
 
     data = RunData(frames_path, attributions, detection_time, attribution_time, video_length, -1.0)
 
-    del frames, filtered_frames
+    del frames
 
     for line in data.to_readable():
         p(line)
