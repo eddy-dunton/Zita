@@ -257,7 +257,7 @@ def save(
 
         write(run_id)
         write(";".join(config.video))
-        write(config.litter_model)
+        write("Ultralytics/yolov5")
         write(config.weights)
         write(config.image_size)
 
