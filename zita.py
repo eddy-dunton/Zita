@@ -290,12 +290,12 @@ def save(
     except:
         pass
 
-    with open("results/{}.csv".format(run_id), "w+") as file:
-        file.write("Data,Score,Speed\n")
-        for data, (score, speed) in scores_events.items():
-            file.write("{},{},{}\n".format(data, score, speed))
-        for data, (score, speed) in scores_no_events.items():
-            file.write("{},{},{}\n".format(data, score, speed))
+    with open("results/runs/{}.csv".format(run_id), "w+") as file:
+        file.write("Data,Score,Speed,Length\n")
+        for data, (score, speed, length) in scores_events.items():
+            file.write("{},{},{},{}\n".format(data, score, speed, length))
+        for data, (score, speed, length) in scores_no_events.items():
+            file.write("{},{},{},{}\n".format(data, score, speed, length))
 
 
 # Reads the ground truth from the
