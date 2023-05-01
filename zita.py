@@ -742,7 +742,7 @@ def run(
 
 
 if __name__ == '__main__':
-    VERSION = "2.9.1"
+    VERSION = "2.9.2"
 
     config = parse_args()
 
