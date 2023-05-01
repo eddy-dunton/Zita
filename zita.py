@@ -665,7 +665,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> (
 
         if run_truth[1] < 0:  # No events
             if not run.attributions:  # No detection
-                scores_no_events[run.path] = (1, speed(run))
+                scores_no_events[run.path] = (1, speed(run), run.video_length)
             else:  # There is a detection
                 # Segments of video with no detections, start with the whole video
                 segments_remaining = temporal_exclusivity(
@@ -683,7 +683,7 @@ def score(truth: [[str, float, float]], run_data: [RunData]) -> (
 
         # There is an event
         if not run.attributions:  # No event detected
-            scores_events[run.path] = (0, speed(run))
+            scores_events[run.path] = (0, speed(run), run.video_length)
         else:  # Event detected
             segments_remaining = temporal_exclusivity(
                 [[0, run_truth[1]], [run_truth[2], run.video_length]],
