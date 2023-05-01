@@ -609,7 +609,10 @@ def run(
 
     start = time.time()
 
-    filtered_frames = motion_filter_frames(config, frames)
+    if config.motion_threshold != -1:
+        filtered_frames = motion_filter_frames(config, frames)
+    else:
+        filtered_frames = frames
 
     p("Filtered {} motionless frames".format(len(frames) - len(filtered_frames)))
 
