@@ -259,7 +259,7 @@ def save(
         write(";".join(config.video))
         write("Ultralytics/yolov5")
         write(config.weights)
-        write(config.image_size)
+        write("640")
 
         write_float(metrics["score"])
         write_float(metrics["score_events"])
